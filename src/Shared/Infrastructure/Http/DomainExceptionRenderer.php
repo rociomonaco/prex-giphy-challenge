@@ -15,6 +15,9 @@ use Src\IdentityAccess\Domain\InvalidCredentials;
 use Src\Shared\Domain\DomainException;
 use Src\Shared\Domain\InvalidArgument;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
 
 final class DomainExceptionRenderer
@@ -32,7 +35,7 @@ final class DomainExceptionRenderer
         InvalidArgument::class => [422, 'invalid_argument'],
     ];
 
-    public function render(Throwable $exception): ?JsonResponse
+    public function render(Throwable $exception): JsonResponse
     {
         if ($exception instanceof AuthenticationException) {
             return $this->error(401, 'unauthenticated', 'Missing, invalid or expired token.');
@@ -52,21 +55,33 @@ final class DomainExceptionRenderer
             return $this->error(422, 'validation_error', 'The given data is invalid.', $exception->errors());
         }
 
-        if (! $exception instanceof DomainException) {
-            return null;
+        if ($exception instanceof DomainException) {
+            foreach (self::MAP as $class => [$status, $code]) {
+                if ($exception instanceof $class) {
+                    return $this->error($status, $code, $exception->getMessage());
+                }
+            }
+
+            return $this->error(500, 'internal_error', 'Unexpected error.');
         }
 
-        foreach (self::MAP as $class => [$status, $code]) {
-            if ($exception instanceof $class) {
-                return $this->error($status, $code, $exception->getMessage());
-            }
+        if ($exception instanceof NotFoundHttpException) {
+            return $this->error(404, 'not_found', 'Resource not found.');
+        }
+
+        if ($exception instanceof MethodNotAllowedHttpException) {
+            return $this->error(405, 'method_not_allowed', 'Method not allowed.');
+        }
+
+        if ($exception instanceof HttpExceptionInterface) {
+            return $this->error($exception->getStatusCode(), 'http_error', 'HTTP error.');
         }
 
         return $this->error(500, 'internal_error', 'Unexpected error.');
     }
 
     /**
-     * @param array<string, list<string>>|null $details
+     * @param  array<string, list<string>>|null  $details
      */
     private function error(int $status, string $code, string $message, ?array $details = null): JsonResponse
     {

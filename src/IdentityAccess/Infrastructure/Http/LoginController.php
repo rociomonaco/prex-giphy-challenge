@@ -11,9 +11,7 @@ use Src\IdentityAccess\Application\Login\LoginHandler;
 
 final readonly class LoginController
 {
-    public function __construct(private LoginHandler $handler)
-    {
-    }
+    public function __construct(private LoginHandler $handler) {}
 
     public function __invoke(LoginRequest $request): JsonResponse
     {
@@ -21,6 +19,10 @@ final readonly class LoginController
             email: $request->string('email')->toString(),
             password: $request->string('password')->toString(),
         ));
+
+        // FormRequest is copied from the kernel request. terminate() sees the original.
+        $request->attributes->set('audit.user_id', $response->userId);
+        request()->attributes->set('audit.user_id', $response->userId);
 
         return new JsonResponse([
             'token_type' => $response->tokenType,
