@@ -463,6 +463,24 @@
       "item": [
         {
           "name": "Guardar GIF favorito",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "",
+                  "const data = pm.response.json().data;",
+                  "pm.test('favorite payload', () => {",
+                  "    pm.expect(data).to.include.keys('id', 'user_id', 'gif_id', 'alias', 'created_at');",
+                  "    pm.expect(data.gif_id).to.eql(pm.environment.get('gif_id'));",
+                  "    pm.expect(data.user_id).to.eql(Number(pm.environment.get('user_id')));",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -490,7 +508,212 @@
                 "favorites"
               ]
             },
-            "description": "Guarda un GIF como favorito del usuario. Requiere token.\n\n**Entrada:** `gif_id` (requerido, alfanumérico), `alias` (requerido, texto), `user_id` (requerido, numérico; debe ser el usuario del token).\n\n**Respuestas:**\n- 201: favorito creado.\n- 401 `unauthenticated`.\n- 403 `forbidden`: `user_id` de otro usuario.\n- 404 `gif_not_found`: el GIF no existe en GIPHY.\n- 409 `favorite_already_exists`: ya era favorito.\n- 422 `validation_error`.\n\nEjecutá antes **Buscar GIFs** para cargar `gif_id`."
+            "description": "Guarda un GIF como favorito del usuario autenticado. Requiere `Authorization: Bearer {{access_token}}`.\n\n**Entrada:** `gif_id` (requerido, alfanumérico, máx. 64), `alias` (requerido, string, máx. 255), `user_id` (requerido, integer, debe existir y coincidir con el usuario del token).\n\n**Respuestas:**\n- 201: `data.id`, `data.user_id`, `data.gif_id`, `data.alias`, `data.created_at`.\n- 401 `unauthenticated`.\n- 403 `forbidden`: `user_id` de otro usuario. Mensaje: `You cannot save favorites for another user.`\n- 404 `gif_not_found`: el GIF no existe en GIPHY.\n- 409 `favorite_already_exists`: ya era favorito de ese usuario. Mensaje: `This GIF is already in your favorites.`\n- 422 `validation_error`.\n\nEl test afirma 201. Ejecutá antes **Buscar GIFs** para cargar `gif_id`."
+          }
+        },
+        {
+          "name": "Guardar GIF favorito - duplicado (409)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const first = await pm.sendRequest({",
+                  "    url: pm.variables.replaceIn('{{base_url}}/api/v1/favorites'),",
+                  "    method: 'POST',",
+                  "    header: {",
+                  "        'Accept': 'application/json',",
+                  "        'Content-Type': 'application/json',",
+                  "        'Authorization': 'Bearer ' + pm.environment.get('access_token')",
+                  "    },",
+                  "    body: {",
+                  "        mode: 'raw',",
+                  "        raw: JSON.stringify({",
+                  "            gif_id: pm.environment.get('gif_id'),",
+                  "            alias: 'mi gif favorito',",
+                  "            user_id: Number(pm.environment.get('user_id'))",
+                  "        })",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('primer guardado aceptado o ya existente', () => {",
+                  "    pm.expect(first.code).to.be.oneOf([201, 409]);",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('error code favorite_already_exists', () => pm.expect(pm.response.json().error.code).to.eql('favorite_already_exists'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"gif_id\": \"{{gif_id}}\",\n    \"alias\": \"mi gif favorito\",\n    \"user_id\": {{user_id}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/favorites",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "favorites"
+              ]
+            },
+            "description": "Segundo guardado del mismo `user_id` + `gif_id`. El pre-request hace el primer POST (201, o 409 si ya existía) y esta request es la repetición.\n\n**Entrada:** la misma que **Guardar GIF favorito**. Requiere token y un `gif_id` que exista en GIPHY.\n\n**Respuesta:** 409 `favorite_already_exists`. Mensaje: `This GIF is already in your favorites.`"
+          }
+        },
+        {
+          "name": "Guardar GIF favorito - otro usuario (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code forbidden', () => pm.expect(pm.response.json().error.code).to.eql('forbidden'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"gif_id\": \"{{gif_id}}\",\n    \"alias\": \"mi gif favorito\",\n    \"user_id\": 999\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/favorites",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "favorites"
+              ]
+            },
+            "description": "`user_id` 999 no es el usuario del token. La autorización corre antes de la validación, así que responde 403 aunque ese usuario no exista.\n\n**Entrada:** `user_id` fijo en 999. Requiere token.\n\n**Respuesta:** 403 `forbidden`. Mensaje: `You cannot save favorites for another user.`"
+          }
+        },
+        {
+          "name": "Guardar GIF favorito - GIF inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('error code gif_not_found', () => pm.expect(pm.response.json().error.code).to.eql('gif_not_found'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"gif_id\": \"doesnotexist123\",\n    \"alias\": \"mi gif favorito\",\n    \"user_id\": {{user_id}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/favorites",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "favorites"
+              ]
+            },
+            "description": "El `gif_id` pasa la validación (alfanumérico) pero GIPHY no lo tiene.\n\n**Entrada:** `gif_id` `doesnotexist123`, `alias` y `user_id` del environment. Requiere token.\n\n**Respuesta:** 404 `gif_not_found`. No se guarda el favorito."
+          }
+        },
+        {
+          "name": "Guardar GIF favorito - sin alias (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code validation_error', () => pm.expect(pm.response.json().error.code).to.eql('validation_error'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"gif_id\": \"abc123\",\n    \"user_id\": {{user_id}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/favorites",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "favorites"
+              ]
+            },
+            "description": "Falta `alias`. Como `user_id` coincide con el token, `authorize()` deja pasar y la validación responde 422.\n\n**Entrada:** `gif_id` y `user_id`, sin `alias`. Requiere token.\n\n**Respuesta:** 422 `validation_error`, con el detalle en `error.details.alias`."
           }
         }
       ]

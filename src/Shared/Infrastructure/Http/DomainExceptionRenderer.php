@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Src\Shared\Infrastructure\Http;
 
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
+use Src\Favorites\Domain\FavoriteAlreadyExists;
 use Src\Gifs\Domain\GifNotFound;
 use Src\Gifs\Domain\GifProviderUnavailable;
 use Src\IdentityAccess\Domain\InvalidCredentials;
 use Src\Shared\Domain\DomainException;
 use Src\Shared\Domain\InvalidArgument;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Throwable;
 
 final class DomainExceptionRenderer
@@ -24,6 +27,7 @@ final class DomainExceptionRenderer
     private const MAP = [
         InvalidCredentials::class => [401, 'invalid_credentials'],
         GifNotFound::class => [404, 'gif_not_found'],
+        FavoriteAlreadyExists::class => [409, 'favorite_already_exists'],
         GifProviderUnavailable::class => [502, 'gif_provider_unavailable'],
         InvalidArgument::class => [422, 'invalid_argument'],
     ];
@@ -32,6 +36,16 @@ final class DomainExceptionRenderer
     {
         if ($exception instanceof AuthenticationException) {
             return $this->error(401, 'unauthenticated', 'Missing, invalid or expired token.');
+        }
+
+        if ($exception instanceof AuthorizationException || $exception instanceof AccessDeniedHttpException) {
+            $message = $exception->getMessage();
+
+            if ($message === '' || $message === 'This action is unauthorized.') {
+                $message = 'You cannot save favorites for another user.';
+            }
+
+            return $this->error(403, 'forbidden', $message);
         }
 
         if ($exception instanceof ValidationException) {
