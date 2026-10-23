@@ -1,58 +1,127 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Prex GIPHY API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+API REST en Laravel que se integra con la API de [GIPHY](https://developers.giphy.com/docs/api/) para buscar GIFs, consultar un GIF por ID y guardar GIFs favoritos por usuario. Autenticación OAuth2.0 y registro de todas las interacciones.
 
-## About Laravel
+Construida con **arquitectura hexagonal + DDD**.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Stack
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Componente | Versión |
+|---|---|
+| PHP | 8.4 |
+| Laravel | 13 |
+| MySQL | 8.0 |
+| Tests | Pest 5 (PHPUnit 13) |
+| Servidor web | Nginx + PHP-FPM |
+| Contenedores | Docker Compose |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Requisitos
 
-## Learning Laravel
+- Docker (Docker Desktop, OrbStack o Docker Engine con el plugin Compose)
+- Git
+- Una API key de GIPHY: se crea gratis en [developers.giphy.com](https://developers.giphy.com/dashboard/) → *Create an API Key* → tipo **API**.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+No hace falta tener PHP, Composer ni MySQL instalados: todo corre dentro de Docker.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Levantar el proyecto
 
 ```bash
-composer require laravel/boost --dev
+git clone <url-del-repo> prex-giphy-challenge
+cd prex-giphy-challenge
 
-php artisan boost:install
+cp .env.example .env
+# Editar .env y completar GIPHY_API_KEY
+
+docker compose up -d --build
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+La primera vez tarda unos minutos: construye la imagen, instala dependencias, genera la `APP_KEY` y corre las migraciones automáticamente.
 
-## Contributing
+Para verificar que levantó:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+docker compose ps                 # app, nginx y mysql corriendo; mysql (healthy)
+curl http://localhost:8080        # {"name":"Prex GIPHY API","status":"ok"}
+curl -i http://localhost:8080/up  # HTTP/1.1 200 OK
+```
 
-## Code of Conduct
+### Servicios
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+| Servicio | Qué es | Puerto en tu máquina |
+|---|---|---|
+| `nginx` | Servidor web, entrada de la API | `8080` |
+| `app` | PHP-FPM 8.4 con Laravel | — (interno, 9000) |
+| `mysql` | Base de datos MySQL 8.0 | `3307` |
 
-## Security Vulnerabilities
+Bases de datos: `prex` (aplicación) y `prex_testing` (tests). Usuario `prex`, contraseña `secret` (solo para desarrollo).
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Linux y Windows
 
-## License
+- **Linux:** el contenedor corre con un usuario no-root con UID/GID 1000. Si tu usuario tiene otro UID (`id -u`), construí la imagen con el tuyo para evitar errores de permisos en `storage/` y `vendor/`:
+  ```bash
+  HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up -d --build
+  ```
+- **Windows:** usar Docker Desktop con WSL 2. Si clonás el repo dentro del sistema de archivos de WSL, aplica lo mismo que en Linux.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Comandos útiles
+
+Atajos del `Makefile` (requieren `make`; al lado, el comando equivalente):
+
+| Comando | Equivale a | Para qué |
+|---|---|---|
+| `make up` | `docker compose up -d` | Levantar |
+| `make down` | `docker compose down` | Apagar |
+| `make build` | `docker compose build` | Reconstruir la imagen |
+| `make logs` | `docker compose logs -f` | Ver logs |
+| `make shell` | `docker compose exec app sh` | Entrar al contenedor |
+| `make migrate` | `docker compose exec app php artisan migrate` | Correr migraciones |
+| `make test` | `docker compose exec app php artisan test` | Correr los tests |
+| `make coverage` | `docker compose exec app php artisan test --coverage` | Tests con cobertura |
+
+Para empezar con la base vacía: `docker compose down -v` (borra el volumen de MySQL).
+
+## Tests
+
+Los tests corren **dentro de Docker** contra la base `prex_testing` (nunca contra la base de la aplicación):
+
+```bash
+make test
+```
+
+Otras formas de correrlos:
+
+```bash
+docker compose exec app php artisan test --testsuite=Arch     # solo arquitectura
+docker compose exec app php artisan test --filter="health"    # por nombre
+docker compose exec app php artisan test --coverage           # con cobertura (PCOV)
+```
+
+Suites:
+
+| Suite | Qué contiene |
+|---|---|
+| `Arch` | Reglas de arquitectura verificadas automáticamente: el dominio no depende de Laravel, la capa de aplicación no depende de infraestructura, `strict_types` en todo `src/`, sin funciones de debug |
+| `Unit` | Lógica de negocio aislada, sin framework ni base de datos |
+| `Feature` | Endpoints HTTP de punta a punta |
+
+## Estructura del proyecto
+
+El código propio vive en `src/`, organizado primero por módulo de negocio y después por capa:
+
+```
+src/
+├── IdentityAccess/   autenticación y tokens
+├── Gifs/             búsqueda y detalle de GIFs (integración con GIPHY)
+├── Favorites/        GIFs favoritos de cada usuario
+├── Audit/            registro de interacciones con la API
+└── Shared/           elementos comunes
+    └── cada módulo: Domain/ · Application/ · Infrastructure/
+```
+
+| Capa | Contiene | Depende de |
+|---|---|---|
+| `Domain` | Entidades, value objects, puertos (interfaces) y excepciones de negocio. PHP puro | Nada |
+| `Application` | Casos de uso | `Domain` |
+| `Infrastructure` | Controllers, adapters (Eloquent, GIPHY, Passport), configuración | Todo |
+
+`app/` conserva solo el arranque de Laravel.
