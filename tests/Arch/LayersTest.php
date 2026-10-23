@@ -20,6 +20,13 @@ arch('application layer does not depend on infrastructure', function (): void {
     }
 });
 
+arch('controllers do not access persistence directly', function (): void {
+    foreach (CONTEXTS as $context) {
+        expect("Src\\{$context}\\Infrastructure\\Http")
+            ->not->toUse(['App\Models', 'Illuminate\Database', 'Illuminate\Support\Facades\DB']);
+    }
+});
+
 arch('source code uses strict types')
     ->expect('Src')
     ->toUseStrictTypes();

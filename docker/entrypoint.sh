@@ -48,4 +48,10 @@ fi
 
 php artisan migrate --force
 
+if [ ! -f storage/oauth-private.key ]; then
+    php artisan passport:keys
+fi
+
+php artisan db:seed --force
+
 exec "$@"

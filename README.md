@@ -35,7 +35,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-La primera vez tarda unos minutos: construye la imagen, instala dependencias, genera la `APP_KEY` y corre las migraciones automáticamente.
+La primera vez tarda unos minutos. En cada arranque, el contenedor hace todo solo: instala dependencias si faltan, genera la `APP_KEY`, corre las migraciones, genera las claves de Passport (si no existen) y crea el usuario de prueba y el cliente de OAuth (sin duplicarlos).
 
 Para verificar que levantó:
 
@@ -80,6 +80,61 @@ Atajos del `Makefile` (requieren `make`; al lado, el comando equivalente):
 
 Para empezar con la base vacía: `docker compose down -v` (borra el volumen de MySQL).
 
+## Autenticación
+
+La API usa OAuth2 con **Laravel Passport** (Personal Access Tokens). Al levantar el contenedor se generan las claves de Passport (si no existen) y se cargan, sin duplicar, el usuario de prueba y el cliente de tokens personales.
+
+Usuario de prueba:
+
+| Email | Contraseña |
+|---|---|
+| `test@prex.com` | `password` |
+
+### Login
+
+`POST /api/v1/auth/login` (no requiere autenticación)
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H 'Accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{"email": "test@prex.com", "password": "password"}'
+```
+
+**200 OK**: credenciales válidas.
+
+```json
+{
+  "token_type": "Bearer",
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9...",
+  "expires_in": 1800,
+  "expires_at": "2026-10-23T10:51:05+00:00"
+}
+```
+
+**401 Unauthorized**: email inexistente o contraseña incorrecta (mismo mensaje en ambos casos, para no revelar qué emails están registrados).
+
+```json
+{"error": {"code": "invalid_credentials", "message": "Invalid email or password."}}
+```
+
+**422 Unprocessable Entity**: datos faltantes o con formato inválido.
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "The given data is invalid.",
+    "details": {
+      "email": ["The email field must be a valid email address."],
+      "password": ["The password field is required."]
+    }
+  }
+}
+```
+
+El token **dura 30 minutos** (`expires_in` en segundos, `expires_at` en ISO 8601). Se envía en el header `Authorization: Bearer <access_token>` en los endpoints protegidos.
+
 ## Tests
 
 Los tests corren **dentro de Docker** contra la base `prex_testing` (nunca contra la base de la aplicación):
@@ -100,8 +155,9 @@ Suites:
 
 | Suite | Qué contiene |
 |---|---|
-| `Arch` | Reglas de arquitectura verificadas automáticamente: el dominio no depende de Laravel, la capa de aplicación no depende de infraestructura, `strict_types` en todo `src/`, sin funciones de debug |
-| `Unit` | Lógica de negocio aislada, sin framework ni base de datos |
+| `Arch` | Reglas de arquitectura verificadas automáticamente: el dominio no depende de Laravel, la capa de aplicación no depende de infraestructura, los controllers no acceden a la persistencia, `strict_types` en todo `src/`, sin funciones de debug |
+| `Unit` | Lógica de negocio aislada, sin framework ni base de datos (usa fakes en memoria de `tests/Support/Fakes`) |
+| `Integration` | Adapters contra la base real (Eloquent, Passport), con `RefreshDatabase` |
 | `Feature` | Endpoints HTTP de punta a punta |
 
 ## Estructura del proyecto
