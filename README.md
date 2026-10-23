@@ -252,6 +252,90 @@ Las respuestas de error de GIPHY nunca se devuelven al cliente; solo se registra
 - Hace hasta 2 intentos, con 200 ms entre uno y otro, **solo** ante un error de conexión o una respuesta 5xx de GIPHY. Un 404, un 400 o un 429 no se reintentan.
 - En el detalle por ID, GIPHY responde 404 para IDs inexistentes y 400 para IDs con formato que no acepta. Los dos se informan como `gif_not_found`.
 
+## Favoritos
+
+Guarda un GIF como favorito del usuario autenticado. Requiere token (`Authorization: Bearer <access_token>`).
+
+Se persiste solo la referencia al GIF (`gif_id`, más el `alias` que elige el usuario). No se copian título, URLs ni imágenes: eso sigue viviendo en GIPHY.
+
+### Guardar GIF favorito
+
+`POST /api/v1/favorites`
+
+| Campo | Obligatorio | Valores |
+|---|---|---|
+| `gif_id` | Sí | Alfanumérico, de 1 a 64 caracteres |
+| `alias` | Sí | Texto de 1 a 255 caracteres. Los espacios de los extremos se recortan |
+| `user_id` | Sí | Entero que exista en `users` y sea el mismo usuario del token |
+
+```bash
+curl -X POST http://localhost:8080/api/v1/favorites \
+  -H 'Accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"gif_id": "774uK11mxE3W0cjE8L", "alias": "mi gif favorito", "user_id": 1}'
+```
+
+**201 Created**:
+
+```json
+{
+  "data": {
+    "id": 1,
+    "user_id": 1,
+    "gif_id": "774uK11mxE3W0cjE8L",
+    "alias": "mi gif favorito",
+    "created_at": "2026-10-23T14:17:24+00:00"
+  }
+}
+```
+
+`created_at` va en ISO 8601. `id` lo asigna la base.
+
+Reglas de negocio:
+
+- El GIF tiene que existir en GIPHY. Si no existe, responde 404 `gif_not_found` y no se guarda nada.
+- Un usuario no puede tener dos veces el mismo GIF. El segundo intento responde 409 `favorite_already_exists`. El índice `UNIQUE (user_id, gif_id)` también lo impide si dos requests pasan el chequeo al mismo tiempo. Otro alias no lo convierte en un favorito nuevo. Dos usuarios distintos sí pueden guardar el mismo GIF.
+- `user_id` tiene que ser el usuario del token. Si es otro, responde 403 y no se guarda nada.
+
+**401 Unauthorized**: falta el token, es inválido o expiró.
+
+```json
+{"error": {"code": "unauthenticated", "message": "Missing, invalid or expired token."}}
+```
+
+**403 Forbidden**: `user_id` numérico distinto del usuario autenticado. Se evalúa antes de la validación, así que un id como `999` (aunque no exista) responde 403 y no 422.
+
+```json
+{"error": {"code": "forbidden", "message": "You cannot save favorites for another user."}}
+```
+
+**404 Not Found**: GIPHY no tiene ese GIF. Si GIPHY no responde, el código es el mismo 502 `gif_provider_unavailable` de la sección GIFs.
+
+```json
+{"error": {"code": "gif_not_found", "message": "GIF not found."}}
+```
+
+**409 Conflict**:
+
+```json
+{"error": {"code": "favorite_already_exists", "message": "This GIF is already in your favorites."}}
+```
+
+**422 Unprocessable Entity**: falta un campo, `gif_id` tiene símbolos o pasa de 64 caracteres, `alias` pasa de 255, o `user_id` no es un entero. Si `user_id` no viene o no es numérico, también es 422 (no 403).
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "The given data is invalid.",
+    "details": {
+      "alias": ["The alias field is required."]
+    }
+  }
+}
+```
+
 ## Tests
 
 Los tests corren **dentro de Docker** contra la base `prex_testing` (nunca contra la base de la aplicación):
@@ -302,3 +386,4 @@ src/
 ## Supuestos
 
 - **Los IDs de GIPHY son strings alfanuméricos** (por ejemplo `774uK11mxE3W0cjE8L`), aunque el challenge dice que son numéricos. Se aceptan solo letras y números, hasta 64 caracteres.
+- **`user_id` viaja en el body y tiene que coincidir con el token.** El contrato pide `user_id` además del Bearer. El usuario no se toma solo del token, y un `user_id` distinto no se ignora para guardar el favorito a nombre de quien está autenticado: la API responde 403 `forbidden` y no persiste nada. Si `user_id` falta o no es numérico, no es un 403: cae en la validación y responde 422.
