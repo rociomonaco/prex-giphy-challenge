@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Prex GIPHY API",
-    "description": "API REST del challenge PHP Hexagonal (Prex): login OAuth2, búsqueda de GIFs, GIF por ID y favoritos.\n\nUso:\n1. Importar esta colección y el environment `Prex GIPHY - Local`.\n2. Seleccionar el environment.\n3. Ejecutar **Auth / Login**: el token se guarda solo en `access_token`.\n4. El resto de los requests usa `Bearer {{access_token}}` (configurado a nivel colección).\n\nEl token vence a los 30 minutos: si un request devuelve 401, volvé a ejecutar el login.",
+    "description": "API REST del challenge PHP Hexagonal (Prex): login OAuth2, búsqueda de GIFs, GIF por ID y favoritos.\n\nUso:\n1. Importar esta colección y el environment `Prex GIPHY - Local`.\n2. Seleccionar el environment.\n3. Ejecutar **Auth / Login**: el token se guarda solo en `access_token`.\n4. El resto de los requests usa `Bearer {{access_token}}` (configurado a nivel colección).\n\nEl token vence a los 30 minutos: si un request devuelve 401, volvé a ejecutar el login.\n\n**Auditoría:** cada request a los 4 servicios (incluidos los que fallan: 401, 403, 404, 409, 422, 502) queda registrado en la tabla `audit_logs` con usuario, servicio, cuerpo de la petición, código HTTP, cuerpo de la respuesta e IP. Contraseñas y tokens se guardan como `***`. No hay endpoint para consultarla (no lo pide el enunciado); después de correr la colección se puede ver con:\n\n```\ndocker compose exec mysql mysql -uprex -psecret prex -e \"SELECT id, user_id, service, response_status, ip_address, request_body FROM audit_logs ORDER BY id DESC LIMIT 20;\"\n```",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
