@@ -230,13 +230,17 @@ Todos los errores usan el formato `{"error": {"code": "...", "message": "..."}}`
 |---|---|---|
 | 401 | `unauthenticated` | Falta el token, es inválido o expiró |
 | 404 | `gif_not_found` | GIPHY no tiene un GIF con ese ID |
-| 404 | — | El ID tiene caracteres no alfanuméricos: la ruta no existe (404 por defecto de Laravel) |
+| 404 | `not_found` | La ruta no existe, o el `{id}` tiene caracteres que no son letras ni números (la ruta no matchea) |
 | 422 | `validation_error` | Parámetros de búsqueda inválidos (detalle por campo en `error.details`) |
 | 422 | `invalid_argument` | ID alfanumérico de más de 64 caracteres |
 | 502 | `gif_provider_unavailable` | GIPHY no responde, tarda demasiado, devuelve error o limita la cuota (429) |
 
 ```json
 {"error": {"code": "gif_not_found", "message": "GIF not found."}}
+```
+
+```json
+{"error": {"code": "not_found", "message": "Resource not found."}}
 ```
 
 ```json
@@ -335,6 +339,27 @@ Reglas de negocio:
   }
 }
 ```
+
+## Auditoría
+
+Cada llamada a los cuatro servicios queda registrada, también cuando falla (401, 403, 404, 409, 422 y 502). No hay endpoint para consultar ni borrar esos registros.
+
+El middleware escribe la fila **después** de armar la respuesta (`terminate()`). El cliente ya recibió su status. Si el insert falla, el error queda en el log de Laravel y la respuesta de la API no cambia. `/` y `/up` no pasan por ese middleware.
+
+Antes de guardar, estas claves se reemplazan por `***`, sin importar mayúsculas, también adentro de objetos anidados y de un string que sea JSON: `password`, `password_confirmation`, `access_token`, `token`, `api_key`, `authorization`. La clave tiene que coincidir entera: `token_type` se guarda tal cual.
+
+| Columna | Qué guarda |
+|---|---|
+| `id` | Autoincremental |
+| `user_id` | Usuario del token, o el del login exitoso. `NULL` si no hay usuario (credenciales inválidas, request sin token). Si el usuario se borra, la fila queda y `user_id` pasa a `NULL` |
+| `service` | Nombre de la ruta: `auth.login`, `gifs.search`, `gifs.show`, `favorites.store` |
+| `method` | Verbo HTTP, hasta 10 caracteres |
+| `path` | Path del request, por ejemplo `/api/v1/gifs/search` |
+| `request_body` | JSON del body y del query string, ya enmascarado |
+| `response_status` | Status HTTP, de 100 a 599 |
+| `response_body` | Cuerpo de la respuesta, texto largo, ya enmascarado |
+| `ip_address` | IP del cliente, hasta 45 caracteres (entra una IPv6). Nginx reenvía `X-Forwarded-For` y Laravel confía en las redes privadas de Docker (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) |
+| `created_at` | Momento del registro. No hay `updated_at`: la fila no se actualiza |
 
 ## Tests
 
