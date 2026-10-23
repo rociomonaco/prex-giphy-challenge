@@ -3,6 +3,9 @@ services:
     build:
       context: .
       target: app
+      args:
+        UID: ${HOST_UID:-1000}
+        GID: ${HOST_GID:-1000}
     image: prex-giphy-app
     volumes:
       - .:/var/www/html
