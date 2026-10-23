@@ -12,7 +12,7 @@ final readonly class LoginResponse
         public string $accessToken,
         public int $expiresIn,
         public DateTimeImmutable $expiresAt,
+        public int $userId,
         public string $tokenType = 'Bearer',
-    ) {
-    }
+    ) {}
 }

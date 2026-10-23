@@ -16,8 +16,7 @@ final readonly class LoginHandler
     public function __construct(
         private CredentialsVerifier $credentialsVerifier,
         private TokenIssuer $tokenIssuer,
-    ) {
-    }
+    ) {}
 
     /**
      * @throws InvalidEmail
@@ -33,6 +32,7 @@ final readonly class LoginHandler
             accessToken: $token->value(),
             expiresIn: AccessToken::lifetimeInSeconds(),
             expiresAt: $token->expiresAt(),
+            userId: $userId->value(),
         );
     }
 }

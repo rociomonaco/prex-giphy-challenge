@@ -23,7 +23,8 @@ test('login returns a bearer token that expires in 30 minutes', function (): voi
     expect($response->tokenType)->toBe('Bearer')
         ->and($response->accessToken)->toBe(FakeTokenIssuer::TOKEN)
         ->and($response->expiresIn)->toBe(1800)
-        ->and($response->expiresAt)->toEqual($this->now->modify('+30 minutes'));
+        ->and($response->expiresAt)->toEqual($this->now->modify('+30 minutes'))
+        ->and($response->userId)->toBe(1);
 });
 
 test('login fails when the password is wrong', function (): void {
