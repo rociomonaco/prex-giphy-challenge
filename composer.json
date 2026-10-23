@@ -1,9 +1,9 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "rociomonaco/prex-giphy-challenge",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "REST API with OAuth2 that integrates GIPHY (search, detail, favorites) with full audit log. Hexagonal architecture + DDD on Laravel.",
+    "keywords": ["laravel", "hexagonal-architecture", "ddd", "giphy", "oauth2", "passport"],
     "license": "MIT",
     "require": {
         "php": "^8.4",

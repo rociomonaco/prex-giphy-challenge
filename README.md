@@ -729,6 +729,7 @@ erDiagram
 
 - **Los IDs de GIPHY son strings alfanuméricos** (por ejemplo `774uK11mxE3W0cjE8L`), aunque el challenge dice que son numéricos. Se aceptan solo letras y números, hasta 64 caracteres.
 - **`user_id` viaja en el body y tiene que coincidir con el token.** El contrato pide `user_id` además del Bearer. El usuario no se toma solo del token, y un `user_id` distinto no se ignora para guardar el favorito a nombre de quien está autenticado: la API responde 403 `forbidden` y no persiste nada. Si `user_id` falta o no es numérico, no es un 403: cae en la validación y responde 422.
+- **Los campos usan minúscula y snake_case** (`query`, `limit`, `offset`, `gif_id`, `alias`, `user_id`), aunque el enunciado los escribe en mayúscula (`QUERY`, `GIF_ID`, `USER_ID`). Es la convención habitual de las APIs REST y de Laravel.
 - **El modelo de GIF expone un subconjunto del objeto de GIPHY.** "Datos del recurso consultado" no define campos. Se exponen `id`, `title`, `url`, `embed_url`, `rating`, `username` e `images.original` / `images.preview`, traducidos por un mapper. El objeto de GIPHY no se devuelve tal cual: si GIPHY cambia su formato, el contrato de esta API no cambia.
 - **No hay registro de usuarios.** El enunciado no lo pide. Un seeder idempotente crea el usuario de prueba al levantar el contenedor.
 
