@@ -1,0 +1,8 @@
+{
+    "data": [],
+    "meta": {
+        "status": 400,
+        "msg": "Validation error",
+        "error_code": "INVALID_ARGUMENT: gifId with value \"ID_ACA\" - invalid GIF id"
+    }
+}

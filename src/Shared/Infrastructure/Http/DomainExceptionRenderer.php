@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Src\Shared\Infrastructure\Http;
 
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
+use Src\Gifs\Domain\GifNotFound;
+use Src\Gifs\Domain\GifProviderUnavailable;
 use Src\IdentityAccess\Domain\InvalidCredentials;
 use Src\Shared\Domain\DomainException;
 use Src\Shared\Domain\InvalidArgument;
@@ -20,11 +23,17 @@ final class DomainExceptionRenderer
      */
     private const MAP = [
         InvalidCredentials::class => [401, 'invalid_credentials'],
+        GifNotFound::class => [404, 'gif_not_found'],
+        GifProviderUnavailable::class => [502, 'gif_provider_unavailable'],
         InvalidArgument::class => [422, 'invalid_argument'],
     ];
 
     public function render(Throwable $exception): ?JsonResponse
     {
+        if ($exception instanceof AuthenticationException) {
+            return $this->error(401, 'unauthenticated', 'Missing, invalid or expired token.');
+        }
+
         if ($exception instanceof ValidationException) {
             return $this->error(422, 'validation_error', 'The given data is invalid.', $exception->errors());
         }

@@ -135,6 +135,123 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 
 El token **dura 30 minutos** (`expires_in` en segundos, `expires_at` en ISO 8601). Se envía en el header `Authorization: Bearer <access_token>` en los endpoints protegidos.
 
+## GIFs
+
+Búsqueda y detalle de GIFs a través de la API de GIPHY. Los dos endpoints **requieren token** (`Authorization: Bearer <access_token>`).
+
+La API no reenvía el JSON de GIPHY: lo traduce a un formato propio, igual en la búsqueda y en el detalle.
+
+| Campo | Qué es |
+|---|---|
+| `id` | ID del GIF en GIPHY (alfanumérico) |
+| `title` | Título (puede venir vacío) |
+| `url` | Página del GIF en giphy.com |
+| `embed_url` | URL para embeber en un `iframe` |
+| `rating` | Clasificación por edad (`g`, `pg`, `pg-13`, `r`) |
+| `username` | Usuario que lo subió (string vacío si no tiene) |
+| `images.original` | Imagen original: `url`, `width`, `height` (en píxeles) |
+| `images.preview` | Versión liviana de 200 px de ancho: `url`, `width`, `height` |
+
+### Buscar GIFs
+
+`GET /api/v1/gifs/search`
+
+| Parámetro | Obligatorio | Valores | Default |
+|---|---|---|---|
+| `query` | Sí | Texto de 1 a 50 caracteres | — |
+| `limit` | No | Entero de 1 a 50 | 25 |
+| `offset` | No | Entero de 0 a 4999 | 0 |
+
+```bash
+curl -G http://localhost:8080/api/v1/gifs/search \
+  -H 'Accept: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode 'query=cat' -d limit=2 -d offset=0
+```
+
+**200 OK**: `pagination.total` es el total de resultados que informa GIPHY, `count` cuántos vinieron en esta página y `offset` desde dónde arranca.
+
+```json
+{
+  "data": [
+    {
+      "id": "774uK11mxE3W0cjE8L",
+      "title": "High Five Ai GIF",
+      "url": "https://giphy.com/gifs/ai-cat-meme-774uK11mxE3W0cjE8L",
+      "embed_url": "https://giphy.com/embed/774uK11mxE3W0cjE8L",
+      "rating": "g",
+      "username": "enayatperak",
+      "images": {
+        "original": {"url": "https://media4.giphy.com/media/774uK11mxE3W0cjE8L/giphy.gif", "width": 480, "height": 480},
+        "preview": {"url": "https://media4.giphy.com/media/774uK11mxE3W0cjE8L/200w.gif", "width": 200, "height": 200}
+      }
+    }
+  ],
+  "pagination": {"total": 500, "count": 1, "offset": 0}
+}
+```
+
+Si no hay resultados, responde **200** con `"data": []`.
+
+### Obtener un GIF por ID
+
+`GET /api/v1/gifs/{id}`
+
+```bash
+curl http://localhost:8080/api/v1/gifs/774uK11mxE3W0cjE8L \
+  -H 'Accept: application/json' \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**200 OK**:
+
+```json
+{
+  "data": {
+    "id": "774uK11mxE3W0cjE8L",
+    "title": "High Five Ai GIF",
+    "url": "https://giphy.com/gifs/ai-cat-meme-774uK11mxE3W0cjE8L",
+    "embed_url": "https://giphy.com/embed/774uK11mxE3W0cjE8L",
+    "rating": "g",
+    "username": "enayatperak",
+    "images": {
+      "original": {"url": "https://media4.giphy.com/media/774uK11mxE3W0cjE8L/giphy.gif", "width": 480, "height": 480},
+      "preview": {"url": "https://media4.giphy.com/media/774uK11mxE3W0cjE8L/200w.gif", "width": 200, "height": 200}
+    }
+  }
+}
+```
+
+### Errores
+
+Todos los errores usan el formato `{"error": {"code": "...", "message": "..."}}`.
+
+| HTTP | `code` | Cuándo |
+|---|---|---|
+| 401 | `unauthenticated` | Falta el token, es inválido o expiró |
+| 404 | `gif_not_found` | GIPHY no tiene un GIF con ese ID |
+| 404 | — | El ID tiene caracteres no alfanuméricos: la ruta no existe (404 por defecto de Laravel) |
+| 422 | `validation_error` | Parámetros de búsqueda inválidos (detalle por campo en `error.details`) |
+| 422 | `invalid_argument` | ID alfanumérico de más de 64 caracteres |
+| 502 | `gif_provider_unavailable` | GIPHY no responde, tarda demasiado, devuelve error o limita la cuota (429) |
+
+```json
+{"error": {"code": "gif_not_found", "message": "GIF not found."}}
+```
+
+```json
+{"error": {"code": "gif_provider_unavailable", "message": "The GIF service is unavailable. Please try again later."}}
+```
+
+Las respuestas de error de GIPHY nunca se devuelven al cliente; solo se registran en el log (status y path, sin la API key).
+
+### Integración con GIPHY
+
+- Configuración en `.env`: `GIPHY_API_KEY`, `GIPHY_BASE_URL` (default `https://api.giphy.com/v1`) y `GIPHY_TIMEOUT` (segundos, default 5).
+- Timeout de conexión de 3 segundos.
+- Hace hasta 2 intentos, con 200 ms entre uno y otro, **solo** ante un error de conexión o una respuesta 5xx de GIPHY. Un 404, un 400 o un 429 no se reintentan.
+- En el detalle por ID, GIPHY responde 404 para IDs inexistentes y 400 para IDs con formato que no acepta. Los dos se informan como `gif_not_found`.
+
 ## Tests
 
 Los tests corren **dentro de Docker** contra la base `prex_testing` (nunca contra la base de la aplicación):
@@ -157,8 +274,8 @@ Suites:
 |---|---|
 | `Arch` | Reglas de arquitectura verificadas automáticamente: el dominio no depende de Laravel, la capa de aplicación no depende de infraestructura, los controllers no acceden a la persistencia, `strict_types` en todo `src/`, sin funciones de debug |
 | `Unit` | Lógica de negocio aislada, sin framework ni base de datos (usa fakes en memoria de `tests/Support/Fakes`) |
-| `Integration` | Adapters contra la base real (Eloquent, Passport), con `RefreshDatabase` |
-| `Feature` | Endpoints HTTP de punta a punta |
+| `Integration` | Adapters contra la base real (Eloquent, Passport) con `RefreshDatabase`, y el adapter de GIPHY con `Http::fake()` y fixtures en `tests/Fixtures/giphy` |
+| `Feature` | Endpoints HTTP de punta a punta (GIPHY siempre simulado: los tests nunca llaman a la API real) |
 
 ## Estructura del proyecto
 
@@ -181,3 +298,7 @@ src/
 | `Infrastructure` | Controllers, adapters (Eloquent, GIPHY, Passport), configuración | Todo |
 
 `app/` conserva solo el arranque de Laravel.
+
+## Supuestos
+
+- **Los IDs de GIPHY son strings alfanuméricos** (por ejemplo `774uK11mxE3W0cjE8L`), aunque el challenge dice que son numéricos. Se aceptan solo letras y números, hasta 64 caracteres.

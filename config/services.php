@@ -28,6 +28,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'giphy' => [
+        'key' => env('GIPHY_API_KEY', ''),
+        'base_url' => env('GIPHY_BASE_URL', 'https://api.giphy.com/v1'),
+        'timeout' => (float) env('GIPHY_TIMEOUT', 5),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
