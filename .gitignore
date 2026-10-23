@@ -13,6 +13,7 @@
 /.vscode
 /.zed
 /auth.json
+/coverage
 /node_modules
 /public/storage
 /storage/*.key
